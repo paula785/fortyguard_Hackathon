@@ -1,0 +1,34 @@
+{
+  "name": "urban-canopy-ai",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@langchain/core": "^1.2.8",
+    "@langchain/google-genai": "^2.2.0",
+    "@langchain/langgraph": "^1.4.11",
+    "@turf/turf": "^7.4.0",
+    "@types/geojson": "^7946.0.16",
+    "@types/node": "^26.2.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@types/uuid": "^10.0.0",
+    "chart.js": "^4.5.1",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.3.1",
+    "maplibre-gl": "^6.4.1",
+    "next": "^15.5.23",
+    "react": "^19.2.8",
+    "react-chartjs-2": "^5.3.1",
+    "react-dom": "^19.2.8",
+    "typescript": "^6.0.3",
+    "uuid": "^14.0.2",
+    "zod": "^4.4.3",
+    "zustand": "^5.0.15"
+  }
+}

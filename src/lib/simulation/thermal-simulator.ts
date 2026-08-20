@@ -1,11 +1,12 @@
 // ─── Thermal Simulation Engine ────────────────────────────────────────────────
 // Computes before/after temperature projections, WHO heat-risk bands & diurnal profiles
 
-import type {
-  HeatmapResult,
-  HeatmapTileFeature,
-  InterventionPlacement,
-  TemperatureStats,
+import {
+  type HeatmapResult,
+  type HeatmapTileFeature,
+  type InterventionPlacement,
+  type TemperatureStats,
+  getFeatureTemp,
 } from "../fortyguard-types";
 import { celsiusToFahrenheit } from "../fortyguard-client";
 
@@ -171,8 +172,8 @@ export function simulateCooling(
     };
   });
 
-  const beforeTempsC = originalFeatures.map((f) => f.properties.temperature);
-  const afterTempsC = afterFeatures.map((f) => f.properties.temperature);
+  const beforeTempsC = originalFeatures.map((f) => getFeatureTemp(f));
+  const afterTempsC = afterFeatures.map((f) => getFeatureTemp(f));
 
   const beforeTempsF = beforeTempsC.map(celsiusToFahrenheit);
   const afterTempsF = afterTempsC.map(celsiusToFahrenheit);
@@ -204,4 +205,42 @@ export function simulateCooling(
     },
     stats,
   };
+}
+
+export function detectHotspots(
+  heatmapData: HeatmapResult | { type: "FeatureCollection"; features: HeatmapTileFeature[] },
+  satelliteSegments: Record<string, number> = {},
+  topN = 15
+): import("../fortyguard-types").Hotspot[] {
+  const features =
+    "map_data" in heatmapData
+      ? heatmapData.map_data.features
+      : heatmapData.features;
+
+  const sorted = [...features].sort((a, b) => getFeatureTemp(b) - getFeatureTemp(a));
+
+  return sorted.slice(0, topN).map((f, i) => {
+    const coords = f.geometry.coordinates[0];
+    const lats = coords.map((c) => c[1]);
+    const lons = coords.map((c) => c[0]);
+    const lat = lats.reduce((a, b) => a + b, 0) / lats.length;
+    const lon = lons.reduce((a, b) => a + b, 0) / lons.length;
+    const tempC = getFeatureTemp(f);
+    const tempF = parseFloat(((tempC * 9) / 5 + 32).toFixed(1));
+
+    const priority: "critical" | "high" | "medium" =
+      i < 5 || tempC >= 38 ? "critical" : i < 10 ? "high" : "medium";
+
+    return {
+      id: `hotspot-${i + 1}`,
+      lat,
+      lon,
+      tempC,
+      tempF,
+      surfaceType: f.properties.surface_type || "asphalt",
+      priority,
+      recommendedAction: i % 2 === 0 ? "tree_planting" : "shade_structure",
+      context: `Tile ${f.properties.tile_id ?? i}: ${tempF}°F (${tempC.toFixed(1)}°C) unshaded corridor`,
+    };
+  });
 }

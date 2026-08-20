@@ -6,7 +6,7 @@ import { useAppStore } from "@/store/app-store";
 import { TREE_SPECIES, TreeSpecies } from "@/lib/catalog/tree-species";
 import { SHADE_STRUCTURES, ShadeStructure } from "@/lib/catalog/shade-structures";
 import { optimizeInterventions } from "@/lib/catalog/optimizer";
-import { simulateCooling } from "@/lib/simulation/thermal-simulator";
+import { simulateCooling, detectHotspots } from "@/lib/simulation/thermal-simulator";
 import { calculateIrrigation } from "@/lib/irrigation/water-calculator";
 import { generateRealisticHeatmap, buildAOIFromCenter } from "@/lib/fortyguard-client";
 
@@ -55,16 +55,7 @@ export default function OptimizerView() {
       // 2. Generate hotspots if none
       let currentHotspots = hotspots;
       if (!currentHotspots || currentHotspots.length === 0) {
-        currentHotspots = baseHeatmap.map_data.features.slice(0, 20).map((f, idx) => ({
-          id: `spot_${idx}`,
-          lat: f.geometry.coordinates[0][0][1] + (Math.random() - 0.5) * 0.005,
-          lon: f.geometry.coordinates[0][0][0] + (Math.random() - 0.5) * 0.005,
-          tempC: f.properties.temperature,
-          tempF: (f.properties.temperature * 9) / 5 + 32,
-          surfaceType: f.properties.surface_type || "asphalt",
-          priority: idx < 8 ? "critical" : "high",
-          recommendedAction: idx % 2 === 0 ? "tree_planting" : "shade_structure",
-        }));
+        currentHotspots = detectHotspots(baseHeatmap, {}, 18);
         setHotspots(currentHotspots);
       }
 

@@ -2,8 +2,8 @@
 // ─── Interactive MapLibre Heatmap with Google Maps & Multi-Style Basemaps ───
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useAppStore } from "@/store/app-store";
-import type { HeatmapTileFeature } from "@/lib/fortyguard-types";
+import { getFeatureTemp, type HeatmapTileFeature } from "@/lib/fortyguard-types";
+import { calculateWHORisk } from "@/lib/simulation/thermal-simulator";
 
 // Temperature → color mapping (bright, high-contrast spectrum)
 function tempToColor(tempC: number, min: number, max: number): string {
@@ -212,20 +212,23 @@ export default function HeatMap() {
     if (!currentData) return;
 
     const features = currentData.features as HeatmapTileFeature[];
-    const temps = features.map((f) => f.properties.temperature);
+    const temps = features.map((f) => getFeatureTemp(f));
     const minTemp = Math.min(...temps);
     const maxTemp = Math.max(...temps);
 
     const coloredGeoJSON = {
       type: "FeatureCollection",
-      features: features.map((f) => ({
-        ...f,
-        properties: {
-          ...f.properties,
-          color: tempToColor(f.properties.temperature, minTemp, maxTemp),
-          opacity: basemap === "google-hybrid" ? 0.65 : 0.75,
-        },
-      })),
+      features: features.map((f) => {
+        const t = getFeatureTemp(f);
+        return {
+          ...f,
+          properties: {
+            ...f.properties,
+            color: tempToColor(t, minTemp, maxTemp),
+            opacity: basemap === "google-hybrid" ? 0.65 : 0.75,
+          },
+        };
+      }),
     };
 
     try {
@@ -265,7 +268,7 @@ export default function HeatMap() {
     map.on("mousemove", "heatmap-fill", (e: any) => {
       if (e.features && e.features.length > 0) {
         const props = e.features[0].properties;
-        const tempC = props.temperature;
+        const tempC = props.average_temperature ?? props.temperature ?? 35;
         setTooltip({
           x: e.point.x,
           y: e.point.y,
@@ -351,7 +354,7 @@ export default function HeatMap() {
       const res = await fetch("/api/heatmap", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lat, lon, radius_km: 2 }),
+        body: JSON.stringify({ lat, lon, radius_km: 1.5, date: "2024-07-15" }),
       });
       const json = await res.json();
       if (json.success) {

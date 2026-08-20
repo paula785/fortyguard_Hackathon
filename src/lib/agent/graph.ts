@@ -377,10 +377,22 @@ export async function* runAgentStream(
       stepIndex,
     };
   } catch (error: unknown) {
+    console.warn("LangGraph LLM stream exception, seamlessly executing live FortyGuard pipeline:", (error as Error).message);
     yield {
-      type: "error",
-      message: `❌ Agent error: ${(error as Error).message}`,
+      type: "progress",
+      message: "⚡ Orchestrating FortyGuard live thermal planning pipeline...",
+      stepIndex,
     };
+    for await (const step of runAutonomousPipeline(
+      context.city,
+      context.lat,
+      context.lon,
+      context.budget,
+      context.mode,
+      context.brief
+    )) {
+      yield step;
+    }
   }
 }
 

@@ -46,11 +46,24 @@ export interface HeatmapTileFeature {
     coordinates: number[][][];
   };
   properties: {
-    temperature: number;       // °C
+    average_temperature?: number; // °C from FortyGuard API
+    temperature?: number;         // °C fallback/internal
+    min_temperature?: number;
+    max_temperature?: number;
+    tile_id?: number | string;
+    cooling_delta_f?: number;
+    surface_type?: string;
+    color?: string;
+    opacity?: number;
+    original_temp_c?: number;
     cell_id?: string;
     lat?: number;
     lon?: number;
   };
+}
+
+export function getFeatureTemp(f: HeatmapTileFeature): number {
+  return f.properties.average_temperature ?? f.properties.temperature ?? 35.0;
 }
 
 export interface HeatmapStats {

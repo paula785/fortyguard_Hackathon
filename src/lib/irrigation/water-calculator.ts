@@ -156,3 +156,5 @@ export function generateIrrigationPlan(
     wateringWindows: WATERING_WINDOWS,
   };
 }
+
+export const calculateIrrigation = generateIrrigationPlan;

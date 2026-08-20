@@ -29,6 +29,7 @@ export interface AgentStep {
 }
 
 export type MapLayer = "heatmap-before" | "heatmap-after" | "interventions";
+export type MainTab = "heatmap" | "optimizer" | "irrigation" | "chat" | "export";
 export type RightTab = "kpi" | "catalog" | "irrigation" | "export";
 
 interface AppState {
@@ -54,6 +55,7 @@ interface AppState {
   kpis: KPIReport | null;
 
   // UI state
+  activeMainTab: MainTab;
   activeLayer: MapLayer;
   rightTab: RightTab;
   isAgentRunning: boolean;
@@ -61,6 +63,7 @@ interface AppState {
   chatMessages: ChatMessage[];
 
   // Actions
+  setActiveMainTab: (tab: MainTab) => void;
   setCity: (city: string) => void;
   setLatLon: (lat: number, lon: number) => void;
   setBudget: (budget: number) => void;
@@ -116,6 +119,7 @@ export const useAppStore = create<AppState>((set) => ({
   irrigationPlan: null,
   kpis: null,
 
+  activeMainTab: "heatmap",
   activeLayer: "heatmap-before",
   rightTab: "kpi",
   isAgentRunning: false,
@@ -131,6 +135,7 @@ export const useAppStore = create<AppState>((set) => ({
   ],
 
   // Setters
+  setActiveMainTab: (activeMainTab) => set({ activeMainTab }),
   setCity: (city) => set({ city }),
   setLatLon: (lat, lon) => set({ lat, lon }),
   setBudget: (budget) => set({ budget }),

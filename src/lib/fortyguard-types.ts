@@ -73,15 +73,16 @@ export interface HeatmapStats {
     mean: number;
     standard_deviation: number;
   };
-  overall_temperature_distribution: number[];
-  normal_temperature_distribution: {
+  overall_temperature_distribution?: number[];
+  normal_temperature_distribution?: {
     x_axis: number[];
     y_axis: number[];
   };
-  temperature_frequency: number[];
+  temperature_frequency?: number[] | { x_axis: number[]; y_axis: number[] };
 }
 
 export interface HeatmapResult {
+  activity_id?: string;
   map_data: {
     type: "FeatureCollection";
     features: HeatmapTileFeature[];
@@ -110,10 +111,11 @@ export interface SegmentationResult {
 }
 
 export interface SatelliteResult {
+  activity_id?: string;
   coordinates: { latitude: number; longitude: number };
-  orignal_image: string[];           // base64 PNGs (note: API typo "orignal")
-  image_year: number;
-  segmentation: SegmentationResult;
+  orignal_image?: string[];           // base64 PNGs (note: API typo "orignal")
+  image_year?: number;
+  segmentation?: SegmentationResult;
 }
 
 // ── Street View Segmentation ──────────────────────────────────────────────────
@@ -211,7 +213,9 @@ export interface EnvParamLocation {
 }
 
 export interface EnvParamsResult {
-  result: {
+  activity_id?: string;
+  temperature_c?: number;
+  result?: {
     metadata: {
       timezone: string;
       time_range: {
@@ -245,13 +249,18 @@ export interface Hotspot {
   id: string;
   lat: number;
   lon: number;
-  temperature: number;     // °C
+  temperature?: number;     // °C
+  tempC?: number;
+  temperatureC?: number;
+  tempF?: number;
   temperatureF: number;    // °F
   surfaceType: string;     // from satellite segmentation
   priority: "critical" | "high" | "medium";
-  areaM2: number;
-  shadePercent: number;
-  coordinates: number[][][]; // tile polygon
+  areaM2?: number;
+  shadePercent?: number;
+  coordinates?: number[][][]; // tile polygon
+  recommendedAction?: string;
+  context?: string;
 }
 
 export interface InterventionPlacement {
@@ -269,8 +278,10 @@ export interface InterventionPlacement {
 }
 
 export interface TemperatureStats {
-  avgBeforeF: number;
-  avgAfterF: number;
+  avgBeforeF?: number;
+  avgAfterF?: number;
+  beforeAvgF?: number;
+  afterAvgF?: number;
   avgDeltaF: number;
   maxDeltaF: number;
   areaImprovedPercent: number;
@@ -280,6 +291,7 @@ export interface IrrigationWindow {
   startHour: number;
   endHour: number;
   label: string;         // "Pre-dawn optimal"
+  timeRange?: string;
 }
 
 export interface PlantIrrigationPlan {
@@ -309,6 +321,13 @@ export interface KPIReport {
   treeSurvivalRatePercent: number;
   totalBudgetUsed: number;
   totalInterventions: number;
+  remainingBudget?: number;
+  treeCount?: number;
+  structureCount?: number;
+  averageCoolingDeltaF?: number;
+  maxCoolingDeltaF?: number;
+  weeklyWaterSavedGallons?: number;
+  annualCO2OffsetKg?: number;
 }
 
 export interface UserPreferences {

@@ -313,8 +313,8 @@ export async function* runAgentStream(
     );
 
     for await (const chunk of await stream) {
-      if ("agent" in chunk) {
-        const messages = chunk.agent.messages;
+      if ("agent" in (chunk as any)) {
+        const messages = (chunk as any).agent?.messages || [];
         for (const msg of messages) {
           if (msg.content && typeof msg.content === "string" && msg.content.length > 0) {
             yield {
@@ -346,8 +346,8 @@ export async function* runAgentStream(
         }
       }
 
-      if ("tools" in chunk) {
-        const messages = chunk.tools.messages;
+      if ("tools" in (chunk as any)) {
+        const messages = (chunk as any).tools?.messages || [];
         for (const msg of messages) {
           if (msg.content) {
             try {

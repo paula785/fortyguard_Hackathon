@@ -21,6 +21,12 @@ export interface ShadeStructure {
   description: string;
   color: string;                  // display color for map rendering
   lifeYears: number;
+  type?: string;
+  albedo?: number;
+  costPerUnit?: number;
+  coolingDeltaF?: number;
+  windRatingMph?: number;
+  lifespanYears?: number;
 }
 
 export const SHADE_STRUCTURES: ShadeStructure[] = [

@@ -184,7 +184,7 @@ export function generateRealisticHeatmap(
         minimum: minTemp,
         maximum: maxTemp,
         mean: parseFloat(meanTemp.toFixed(2)),
-        median: parseFloat(meanTemp.toFixed(2)),
+        standard_deviation: 0.25,
       },
     },
   };
@@ -211,17 +211,20 @@ export class FortyGuardClient {
     } catch {
       return {
         activity_id: `sat_${Date.now()}`,
-        satellite_data: {
-          type: "FeatureCollection",
-          features: [],
-        },
-        stats_data: {
-          class_distribution: {
-            asphalt: 42,
-            concrete: 28,
-            vegetation: 14,
-            buildings: 16,
+        coordinates: { latitude: params.sat.latitude, longitude: params.sat.longitude },
+        segmentation: {
+          image_dimensions: { height: 512, width: 512 },
+          mode: "standard",
+          processing_time_seconds: 1.2,
+          request_id: `req_${Date.now()}`,
+          segments: {
+            building: 0.42,
+            road: 0.28,
+            vegetation: 0.14,
+            sidewalk: 0.16,
           },
+          image_legend: {},
+          image_content: "",
         },
       };
     }
@@ -247,13 +250,27 @@ export class FortyGuardClient {
     } catch {
       return {
         activity_id: `env_${Date.now()}`,
-        data: {
-          temperature_c: 39,
-          humidity_pct: 22,
-          solar_radiation_w_m2: 890,
-          heat_index_c: 41,
-          uv_index: 9.5,
-          wind_speed_ms: 3.2,
+        temperature_c: params.temperature,
+        result: {
+          metadata: {
+            timezone: "UTC",
+            time_range: { start: "00:00", end: "23:00", interval: "1h", count: 24 },
+            timestamps: [],
+          },
+          locations: [
+            {
+              lat: params.latitude,
+              lon: params.longitude,
+              elevation: 330,
+              temperature: params.temperature,
+              parameters: {
+                heat_index_celsius: [params.temperature + 2],
+                relative_humidity_percent: [22],
+                precipitation_mm: [0],
+                cloud_cover_octas: [2],
+              },
+            },
+          ],
         },
       };
     }

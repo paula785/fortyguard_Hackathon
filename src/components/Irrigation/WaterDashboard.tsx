@@ -19,14 +19,7 @@ export default function WaterDashboard() {
     if (interventions.length > 0) {
       const updated = calculateIrrigation(
         interventions,
-        {
-          temperature_c: 39,
-          humidity_pct: 22,
-          solar_radiation_w_m2: 890,
-          heat_index_c: 41,
-          uv_index: 9.5,
-          wind_speed_ms: 3.2,
-        },
+        null,
         isDrought
       );
       setIrrigationPlan(updated);
@@ -162,7 +155,7 @@ export default function WaterDashboard() {
                     {i === 0 ? "⭐ " : ""}{w.label}
                   </span>
                   <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: "0.15rem" }}>
-                    {w.timeRange}
+                    {w.timeRange || `${w.startHour}:00 – ${w.endHour}:00`}
                   </div>
                 </div>
                 <span className="pill" style={{ background: i === 0 ? "rgba(16,185,129,0.25)" : "rgba(255,255,255,0.08)", color: i === 0 ? "#34d399" : "var(--text-secondary)" }}>

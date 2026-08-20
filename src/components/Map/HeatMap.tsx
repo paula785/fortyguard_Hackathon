@@ -2,6 +2,7 @@
 // ─── Interactive MapLibre Heatmap with Google Maps & Multi-Style Basemaps ───
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useAppStore } from "@/store/app-store";
 import { getFeatureTemp, type HeatmapTileFeature } from "@/lib/fortyguard-types";
 import { calculateWHORisk } from "@/lib/simulation/thermal-simulator";
 

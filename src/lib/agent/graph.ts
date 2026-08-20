@@ -304,13 +304,13 @@ export async function* runAgentStream(
     stepIndex: 0,
   };
 
+  let stepIndex = 1;
+
   try {
     const stream = agent.stream(
       { messages: [{ role: "human", content: userMessage }] },
       { recursionLimit: 25 }
     );
-
-    let stepIndex = 1;
 
     for await (const chunk of await stream) {
       if ("agent" in chunk) {

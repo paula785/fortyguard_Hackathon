@@ -1,5 +1,5 @@
 // ─── Thermal Simulation Engine ────────────────────────────────────────────────
-// Computes before/after temperature projections based on intervention placements
+// Computes before/after temperature projections, WHO heat-risk bands & diurnal profiles
 
 import type {
   HeatmapResult,
@@ -8,16 +8,99 @@ import type {
   TemperatureStats,
 } from "../fortyguard-types";
 import { celsiusToFahrenheit } from "../fortyguard-client";
-import { getSpeciesById } from "../catalog/tree-species";
-import { getStructureById } from "../catalog/shade-structures";
-import { v4 as uuidv4 } from "uuid";
+
+// ── WHO Heat Risk Classification ──────────────────────────────────────────
+export interface WHORiskBand {
+  level: "Normal" | "Moderate" | "High" | "Extreme Alert";
+  color: string;
+  badgeClass: string;
+  advisory: string;
+  zScore: number;
+}
+
+export function calculateWHORisk(tempC: number, meanBaselineC = 34, stdDev = 3.5): WHORiskBand {
+  const zScore = parseFloat(((tempC - meanBaselineC) / stdDev).toFixed(2));
+
+  if (tempC >= 40 || zScore >= 2.0) {
+    return {
+      level: "Extreme Alert",
+      color: "#ef4444",
+      badgeClass: "pill-extreme",
+      advisory: "Severe heatstroke risk for general population. Immediate shade & cooling required.",
+      zScore,
+    };
+  }
+  if (tempC >= 35 || zScore >= 1.0) {
+    return {
+      level: "High",
+      color: "#f97316",
+      badgeClass: "pill-high",
+      advisory: "Dangerous heat stress for outdoor workers, transit commuters & vulnerable populations.",
+      zScore,
+    };
+  }
+  if (tempC >= 30 || zScore >= 0.0) {
+    return {
+      level: "Moderate",
+      color: "#f59e0b",
+      badgeClass: "pill-moderate",
+      advisory: "Elevated discomfort in unshaded asphalt corridors. Heat mitigation recommended.",
+      zScore,
+    };
+  }
+  return {
+    level: "Normal",
+    color: "#10b981",
+    badgeClass: "pill-low",
+    advisory: "Acceptable microclimate thermal threshold.",
+    zScore,
+  };
+}
+
+// ── 24-Hour Diurnal Temperature Profile Simulation ────────────────────────
+export interface DiurnalPoint {
+  hour: string;
+  baselineF: number;
+  cooledF: number;
+  deltaF: number;
+}
+
+export function generateDiurnalProfile(avgTempC: number, avgDeltaF: number): DiurnalPoint[] {
+  const points: DiurnalPoint[] = [];
+  const baseF = (avgTempC * 9) / 5 + 32;
+
+  // Typical diurnal temperature curve factors (peak at 15:00)
+  const hourFactors = [
+    -6.5, -7.2, -7.8, -8.2, -8.5, -7.9, // 00:00 - 05:00 (Night/Pre-dawn)
+    -6.2, -3.5, 0.0, 3.8, 6.5, 8.2,     // 06:00 - 11:00 (Morning)
+    9.5, 10.8, 11.5, 11.2, 9.8, 7.5,    // 12:00 - 17:00 (Afternoon peak)
+    5.0, 2.5, 0.2, -2.0, -4.0, -5.5     // 18:00 - 23:00 (Evening)
+  ];
+
+  for (let h = 0; h < 24; h++) {
+    const baselineF = parseFloat((baseF + hourFactors[h]).toFixed(1));
+    // Cooling is highest during sunny peak hours (10:00 - 18:00)
+    const solarFactor = Math.max(0.2, Math.sin((h / 24) * Math.PI) * 1.3);
+    const deltaF = parseFloat((avgDeltaF * solarFactor).toFixed(1));
+    const cooledF = parseFloat((baselineF - deltaF).toFixed(1));
+
+    points.push({
+      hour: `${h.toString().padStart(2, "0")}:00`,
+      baselineF,
+      cooledF,
+      deltaF,
+    });
+  }
+
+  return points;
+}
 
 // ── Geometry helpers ──────────────────────────────────────────────────────
 function haversineDistanceM(
   lat1: number, lon1: number,
   lat2: number, lon2: number
 ): number {
-  const R = 6371000; // Earth radius in meters
+  const R = 6371000;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLon = ((lon2 - lon1) * Math.PI) / 180;
   const a =
@@ -39,185 +122,86 @@ function tileCenter(feature: HeatmapTileFeature): { lat: number; lon: number } {
 }
 
 function coverageRadius(p: InterventionPlacement): number {
-  // Convert coverage area (m²) to equivalent circular radius
   return Math.sqrt(p.coverageM2 / Math.PI);
 }
 
-// ── Core simulation ───────────────────────────────────────────────────────
-
-/**
- * For each heatmap tile, compute the cumulative cooling from nearby interventions.
- * Uses an inverse-distance weighted overlap model with diminishing returns.
- */
+// ── Core Thermal Cooling Simulation ───────────────────────────────────────
 export function simulateCooling(
-  heatmapResult: HeatmapResult,
+  heatmapData: { type: "FeatureCollection"; features: HeatmapTileFeature[] },
   placements: InterventionPlacement[]
 ): {
   beforeGeoJSON: { type: "FeatureCollection"; features: HeatmapTileFeature[] };
   afterGeoJSON: { type: "FeatureCollection"; features: HeatmapTileFeature[] };
   stats: TemperatureStats;
 } {
-  const originalFeatures = heatmapResult.map_data.features;
+  const originalFeatures = heatmapData.features;
 
   const afterFeatures: HeatmapTileFeature[] = originalFeatures.map((tile) => {
     const center = tileCenter(tile);
-    const originalTempC = tile.properties.temperature;
-    const originalTempF = celsiusToFahrenheit(originalTempC);
-
-    // Accumulate cooling from all nearby interventions
-    let totalCoolingF = 0;
-    const overlappingPlacementIds = new Set<string>();
+    let totalCoolingDeltaF = 0;
 
     for (const p of placements) {
       const distM = haversineDistanceM(center.lat, center.lon, p.lat, p.lon);
-      const radius = coverageRadius(p);
+      const radiusM = coverageRadius(p) * 2.5;
 
-      if (distM <= radius) {
-        // Full effect within coverage radius
-        const shadeDensity = getShadeDensity(p);
-        const cooling = p.coolingDeltaF * shadeDensity;
-        totalCoolingF += cooling;
-        overlappingPlacementIds.add(p.id);
-      } else if (distM <= radius * 2.5) {
-        // Partial effect in surrounding zone (radiant + convective)
-        const falloff = 1 - (distM - radius) / (radius * 1.5);
-        const shadeDensity = getShadeDensity(p);
-        const cooling = p.coolingDeltaF * shadeDensity * falloff * 0.4;
-        totalCoolingF += cooling;
+      if (distM <= radiusM) {
+        const proximityFactor = 1 - distM / radiusM;
+        const incrementalCooling = p.coolingDeltaF * proximityFactor;
+        // Diminishing returns model: 1 - e^(-total / k)
+        totalCoolingDeltaF =
+          totalCoolingDeltaF +
+          incrementalCooling * Math.exp(-totalCoolingDeltaF / 10);
       }
     }
 
-    // Diminishing returns when multiple items overlap
-    const count = overlappingPlacementIds.size;
-    const diminishingFactor = count > 1 ? 1 + Math.log(count) * 0.4 : 1;
-    const adjustedCoolingF = totalCoolingF / Math.max(diminishingFactor, 1);
-
-    const afterTempF = Math.max(originalTempF - adjustedCoolingF, originalTempF * 0.7);
-    const afterTempC = ((afterTempF - 32) * 5) / 9;
+    const coolingDeltaC = (totalCoolingDeltaF * 5) / 9;
+    const newTempC = Math.max(
+      tile.properties.temperature - coolingDeltaC,
+      tile.properties.temperature * 0.75
+    );
 
     return {
       ...tile,
       properties: {
         ...tile.properties,
-        temperature: parseFloat(afterTempC.toFixed(2)),
-        temperature_before: originalTempC,
-        cooling_delta_f: parseFloat(adjustedCoolingF.toFixed(2)),
+        temperature: parseFloat(newTempC.toFixed(2)),
+        cooling_delta_f: parseFloat(totalCoolingDeltaF.toFixed(2)),
+        original_temp_c: tile.properties.temperature,
       },
     };
   });
 
-  // Compute summary stats
-  const beforeTempsF = originalFeatures.map((f) =>
-    celsiusToFahrenheit(f.properties.temperature)
-  );
-  const afterTempsF = afterFeatures.map((f) =>
-    celsiusToFahrenheit(f.properties.temperature)
-  );
+  const beforeTempsC = originalFeatures.map((f) => f.properties.temperature);
+  const afterTempsC = afterFeatures.map((f) => f.properties.temperature);
 
-  const avgBeforeF = avg(beforeTempsF);
-  const avgAfterF = avg(afterTempsF);
-  const avgDeltaF = avgBeforeF - avgAfterF;
-  const maxDeltaF = Math.max(
-    ...afterFeatures.map((f) => (f.properties as Record<string, number>).cooling_delta_f ?? 0)
-  );
-  const improvedCount = afterFeatures.filter(
-    (f) => ((f.properties as Record<string, number>).cooling_delta_f ?? 0) > 0
-  ).length;
-  const areaImprovedPercent = (improvedCount / originalFeatures.length) * 100;
+  const beforeTempsF = beforeTempsC.map(celsiusToFahrenheit);
+  const afterTempsF = afterTempsC.map(celsiusToFahrenheit);
+
+  const deltasF = beforeTempsF.map((b, i) => b - afterTempsF[i]);
+  const avgDeltaF = deltasF.reduce((a, b) => a + b, 0) / (deltasF.length || 1);
+  const maxDeltaF = Math.max(...deltasF, 0);
+
+  const improvedCount = deltasF.filter((d) => d > 0.5).length;
+  const areaImprovedPercent = (improvedCount / (deltasF.length || 1)) * 100;
+
+  const stats: TemperatureStats = {
+    beforeAvgF: parseFloat(
+      (beforeTempsF.reduce((a, b) => a + b, 0) / (beforeTempsF.length || 1)).toFixed(1)
+    ),
+    afterAvgF: parseFloat(
+      (afterTempsF.reduce((a, b) => a + b, 0) / (afterTempsF.length || 1)).toFixed(1)
+    ),
+    avgDeltaF: parseFloat(avgDeltaF.toFixed(1)),
+    maxDeltaF: parseFloat(maxDeltaF.toFixed(1)),
+    areaImprovedPercent: parseFloat(areaImprovedPercent.toFixed(1)),
+  };
 
   return {
-    beforeGeoJSON: heatmapResult.map_data,
+    beforeGeoJSON: heatmapData,
     afterGeoJSON: {
       type: "FeatureCollection",
       features: afterFeatures,
     },
-    stats: {
-      avgBeforeF: parseFloat(avgBeforeF.toFixed(1)),
-      avgAfterF: parseFloat(avgAfterF.toFixed(1)),
-      avgDeltaF: parseFloat(avgDeltaF.toFixed(1)),
-      maxDeltaF: parseFloat(maxDeltaF.toFixed(1)),
-      areaImprovedPercent: parseFloat(areaImprovedPercent.toFixed(1)),
-    },
+    stats,
   };
-}
-
-function getShadeDensity(p: InterventionPlacement): number {
-  if (p.type === "tree") {
-    const species = getSpeciesById(p.catalogItemId);
-    return species?.shadeDensity ?? 0.7;
-  } else {
-    const structure = getStructureById(p.catalogItemId);
-    return structure ? structure.solarBlockingPercent / 100 : 0.9;
-  }
-}
-
-function avg(arr: number[]): number {
-  if (arr.length === 0) return 0;
-  return arr.reduce((a, b) => a + b, 0) / arr.length;
-}
-
-// ── Hotspot Detection ─────────────────────────────────────────────────────────
-
-/**
- * Identify top heat hotspots from heatmap + satellite segmentation data.
- * Prioritizes tiles with high temperature AND low shade (asphalt, concrete).
- */
-export function detectHotspots(
-  heatmapResult: HeatmapResult,
-  satelliteSegments?: Record<string, number>, // class coverage %
-  topN: number = 20
-): import("../fortyguard-types").Hotspot[] {
-  const features = heatmapResult.map_data.features;
-  const maxTemp = heatmapResult.map_data.features.reduce(
-    (m, f) => Math.max(m, f.properties.temperature), -Infinity
-  );
-  const minTemp = features.reduce(
-    (m, f) => Math.min(m, f.properties.temperature), Infinity
-  );
-  const tempRange = maxTemp - minTemp || 1;
-
-  const scored = features.map((tile) => {
-    const center = tileCenter(tile);
-    const tempC = tile.properties.temperature;
-    const tempF = celsiusToFahrenheit(tempC);
-    const normalizedTemp = (tempC - minTemp) / tempRange;
-
-    // Estimate shade from satellite segments (asphalt/concrete = low shade)
-    const asphaltPct = (satelliteSegments?.["asphalt"] ?? 0) +
-      (satelliteSegments?.["road"] ?? 0) +
-      (satelliteSegments?.["pavement"] ?? 0);
-    const vegetationPct = satelliteSegments?.["vegetation"] ?? 0;
-    const shadePercent = vegetationPct;
-
-    // Priority scoring: high temp + low shade = critical
-    const score = normalizedTemp * 0.7 + (1 - shadePercent / 100) * 0.3;
-
-    const priority: "critical" | "high" | "medium" =
-      score > 0.75 ? "critical" : score > 0.5 ? "high" : "medium";
-
-    // Estimate tile area in m²
-    const coords = tile.geometry.coordinates[0];
-    const latDiff = Math.abs(coords[0][1] - coords[2][1]);
-    const lonDiff = Math.abs(coords[0][0] - coords[2][0]);
-    const areaM2 = latDiff * 111000 * lonDiff * 111000 * Math.cos((center.lat * Math.PI) / 180);
-
-    return {
-      id: uuidv4(),
-      lat: center.lat,
-      lon: center.lon,
-      temperature: tempC,
-      temperatureF: parseFloat(tempF.toFixed(1)),
-      surfaceType: asphaltPct > 50 ? "asphalt" : vegetationPct > 30 ? "vegetation" : "mixed",
-      priority,
-      areaM2: parseFloat(areaM2.toFixed(0)),
-      shadePercent: parseFloat(shadePercent.toFixed(1)),
-      coordinates: tile.geometry.coordinates,
-      score,
-    };
-  });
-
-  return scored
-    .sort((a, b) => b.score - a.score)
-    .slice(0, topN)
-    .map(({ score: _score, ...rest }) => rest);
 }

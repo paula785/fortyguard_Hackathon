@@ -541,6 +541,45 @@ export default function HeatMap() {
         )}
       </div>
 
+      {/* WHO Heat-Risk Sentinel & Anomaly Card */}
+      {heatmapBefore && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: 14,
+            left: 14,
+            background: "rgba(6, 21, 16, 0.94)",
+            border: "1px solid var(--border-medium)",
+            borderRadius: "var(--radius-md)",
+            padding: "0.65rem 0.85rem",
+            zIndex: 20,
+            boxShadow: "var(--shadow-md)",
+            maxWidth: 260,
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.3rem" }}>
+            <span style={{ fontSize: "0.68rem", fontWeight: 700, textTransform: "uppercase", color: "var(--text-muted)", letterSpacing: "0.06em" }}>
+              WHO Heat-Risk Index
+            </span>
+            <span
+              className="pill"
+              style={{
+                background: maxTempC >= 38 ? "rgba(239, 68, 68, 0.2)" : maxTempC >= 34 ? "rgba(249, 115, 22, 0.2)" : "rgba(16, 185, 129, 0.2)",
+                color: maxTempC >= 38 ? "#fca5a5" : maxTempC >= 34 ? "#fdba74" : "#34d399",
+                fontSize: "0.65rem",
+              }}
+            >
+              {maxTempC >= 38 ? "🚨 Extreme Alert" : maxTempC >= 34 ? "⚠️ High Risk" : "🌱 Moderate"}
+            </span>
+          </div>
+          <div style={{ fontSize: "0.72rem", color: "var(--text-secondary)", lineHeight: 1.35 }}>
+            {maxTempC >= 38
+              ? "Peak surface temperatures over 100°F detected. Elevated risk of pedestrian heatstroke."
+              : "Moderate solar thermal absorption across unshaded asphalt."}
+          </div>
+        </div>
+      )}
+
       {/* Hotspots Counter Pill */}
       {hotspots.length > 0 && (
         <div

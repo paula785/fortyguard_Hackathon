@@ -384,12 +384,12 @@ export async function* runAgentStream(
       stepIndex,
     };
     for await (const step of runAutonomousPipeline(
-      context.city,
-      context.lat,
-      context.lon,
-      context.budget,
-      context.mode,
-      context.brief
+      params?.city || "Phoenix, AZ",
+      params?.lat || 33.4484,
+      params?.lon || -112.074,
+      params?.budget || 250000,
+      params?.mode || "balanced",
+      params?.brief || userMessage
     )) {
       yield step;
     }

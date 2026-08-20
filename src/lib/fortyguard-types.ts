@@ -88,6 +88,16 @@ export interface HeatmapResult {
     features: HeatmapTileFeature[];
   };
   stats_data: HeatmapStats;
+  _telemetry?: {
+    isLive: boolean;
+    taskId?: string;
+    source: string;
+    latencyMs: number;
+    resolutionMeters: number;
+    featuresCount: number;
+    timestamp: string;
+    requestPayload?: unknown;
+  };
 }
 
 // ── Satellite View Segmentation ───────────────────────────────────────────────

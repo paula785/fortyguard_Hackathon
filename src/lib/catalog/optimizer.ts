@@ -86,17 +86,19 @@ function buildCandidates(preferences: UserPreferences): CandidateItem[] {
 function offsetLatLon(
   lat: number,
   lon: number,
-  index: number
+  index: number,
+  surfaceType: string = "asphalt"
 ): { lat: number; lon: number } {
-  // Spread placements in a grid pattern around hotspot center
-  const offsetM = 30; // 30m offsets
-  const row = Math.floor(index / 4);
-  const col = index % 4;
-  const latOffset = (row * offsetM) / 111000;
-  const lonOffset = (col * offsetM) / (111000 * Math.cos((lat * Math.PI) / 180));
+  // Corridor-aligned spatial placement (offsets along sidewalk/verge perimeter)
+  const angle = (index * (Math.PI * 2)) / 6 + (surfaceType === "asphalt" ? 0.3 : 0);
+  const distanceMeters = 18 + (index % 3) * 12; // 18m - 42m realistic corridor buffer
+  
+  const latOffset = (distanceMeters * Math.cos(angle)) / 111000;
+  const lonOffset = (distanceMeters * Math.sin(angle)) / (111000 * Math.cos((lat * Math.PI) / 180));
+  
   return {
-    lat: lat + latOffset - latOffset * 1.5,
-    lon: lon + lonOffset - lonOffset * 1.5,
+    lat: parseFloat((lat + latOffset).toFixed(6)),
+    lon: parseFloat((lon + lonOffset).toFixed(6)),
   };
 }
 
@@ -117,7 +119,7 @@ export function optimizeInterventions(
   preferences: UserPreferences,
   maxItemsPerHotspot: number = 6
 ): OptimizationResult {
-  const candidates = buildCandidates(preferences);
+  const baseCandidates = buildCandidates(preferences);
   const placements: InterventionPlacement[] = [];
   let remainingBudget = budgetCap;
 
@@ -130,16 +132,28 @@ export function optimizeInterventions(
   for (const hotspot of sortedHotspots) {
     if (remainingBudget <= 0) break;
 
+    // Land-cover aware filtering for this hotspot
+    // If asphalt / plaza -> boost shade structures and high-reflectance sails
+    // If sidewalk / verge -> boost deep-root shade trees
+    const candidates = baseCandidates.filter((c) => {
+      if (hotspot.surfaceType === "asphalt" && hotspot.tempC >= 40) {
+        return c.type === "shade_structure" || (c.type === "tree" && c.coolingDeltaF >= 8);
+      }
+      if (hotspot.surfaceType === "sidewalk_verge") {
+        return c.type === "tree" || c.item.id.includes("bus") || c.item.id.includes("pergola");
+      }
+      return true;
+    });
+
     let itemsPlacedHere = 0;
-    let localBudget = Math.min(remainingBudget, budgetCap * 0.4); // max 40% per hotspot
+    let localBudget = Math.min(remainingBudget, budgetCap * 0.35); // max 35% per hotspot cluster
 
     for (const candidate of candidates) {
       if (itemsPlacedHere >= maxItemsPerHotspot) break;
-      if (candidate.cost > localBudget) continue;
+      if (candidate.cost > localBudget || candidate.cost > remainingBudget) continue;
 
-      const { lat, lon } = offsetLatLon(hotspot.lat, hotspot.lon, itemsPlacedHere);
+      const { lat, lon } = offsetLatLon(hotspot.lat, hotspot.lon, itemsPlacedHere, hotspot.surfaceType);
 
-      const isTree = candidate.type === "tree";
       const catalogItem = candidate.item as TreeSpecies | ShadeStructure;
 
       const placement: InterventionPlacement = {
@@ -168,9 +182,11 @@ export function optimizeInterventions(
     placements,
     totalCost,
     remainingBudget,
-    totalCoolingDeltaF: placements.reduce((s, p) => s + p.coolingDeltaF, 0) / Math.max(placements.length, 1),
-    totalWaterGalPerDay: placements.reduce((s, p) => s + p.waterGalPerDay, 0),
-    totalCoverageM2: placements.reduce((s, p) => s + p.coverageM2, 0),
+    totalCoolingDeltaF: placements.length > 0 
+      ? parseFloat((placements.reduce((s, p) => s + p.coolingDeltaF, 0) / placements.length).toFixed(1))
+      : 0,
+    totalWaterGalPerDay: Math.round(placements.reduce((s, p) => s + p.waterGalPerDay, 0)),
+    totalCoverageM2: Math.round(placements.reduce((s, p) => s + p.coverageM2, 0)),
     treeCount: placements.filter((p) => p.type === "tree").length,
     structureCount: placements.filter((p) => p.type === "shade_structure").length,
   };

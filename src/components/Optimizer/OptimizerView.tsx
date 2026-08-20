@@ -192,7 +192,7 @@ export default function OptimizerView() {
       </div>
 
       {/* KPI Stats Cards Grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "var(--space-md)", marginBottom: "var(--space-lg)" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "var(--space-md)", marginBottom: "var(--space-lg)" }}>
         <div className="glass-card" style={{ padding: "var(--space-md)" }}>
           <div className="kpi-label">Total Allocated</div>
           <div className="kpi-val" style={{ color: "var(--accent-gold-bright)" }}>
@@ -204,22 +204,32 @@ export default function OptimizerView() {
         </div>
 
         <div className="glass-card" style={{ padding: "var(--space-md)" }}>
-          <div className="kpi-label">Tree Interventions</div>
+          <div className="kpi-label">Interventions</div>
           <div className="kpi-val" style={{ color: "#34d399" }}>
-            {treeCount} Trees
+            {treeCount} Trees / {structureCount} Sails
           </div>
           <div style={{ fontSize: "0.72rem", color: "var(--text-secondary)", marginTop: "0.2rem" }}>
-            15 climate-resilient species
+            Land-cover optimized
           </div>
         </div>
 
         <div className="glass-card" style={{ padding: "var(--space-md)" }}>
-          <div className="kpi-label">Shade Structures</div>
-          <div className="kpi-val" style={{ color: "#06b6d4" }}>
-            {structureCount} Units
+          <div className="kpi-label">i-Tree Carbon Offset</div>
+          <div className="kpi-val" style={{ color: "#34d399" }}>
+            {(treeCount * 22).toLocaleString()} kg/yr
           </div>
           <div style={{ fontSize: "0.72rem", color: "var(--text-secondary)", marginTop: "0.2rem" }}>
-            High-albedo engineered panels
+            USDA Forest Service model
+          </div>
+        </div>
+
+        <div className="glass-card" style={{ padding: "var(--space-md)" }}>
+          <div className="kpi-label">Stormwater Retention</div>
+          <div className="kpi-val" style={{ color: "#38bdf8" }}>
+            {(treeCount * 420 + structureCount * 120).toLocaleString()} gal/yr
+          </div>
+          <div style={{ fontSize: "0.72rem", color: "var(--text-secondary)", marginTop: "0.2rem" }}>
+            Canopy runoff interception
           </div>
         </div>
 

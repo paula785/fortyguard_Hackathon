@@ -106,7 +106,8 @@ function sleep(ms: number): Promise<void> {
 // ── Fallback High-Fidelity Thermal Grid Generator ──────────────────────────
 export function generateRealisticHeatmap(
   aoi: import("./fortyguard-types").GeoJSONFeatureCollection,
-  baseTempC = 38.5
+  baseTempC = 38.5,
+  metadata?: { date?: string; time?: string; granularity?: number }
 ): HeatmapResult {
   const coords = aoi.features[0]?.geometry?.coordinates?.[0] || [
     [-112.084, 33.438],
@@ -122,7 +123,7 @@ export function generateRealisticHeatmap(
   const minLat = Math.min(...lats);
   const maxLat = Math.max(...lats);
 
-  const steps = 14;
+  const steps = metadata?.granularity === 50 ? 20 : metadata?.granularity === 250 ? 8 : 14;
   const dLon = (maxLon - minLon) / steps;
   const dLat = (maxLat - minLat) / steps;
 
@@ -174,7 +175,7 @@ export function generateRealisticHeatmap(
   const meanTemp = temps.reduce((a, b) => a + b, 0) / temps.length;
 
   return {
-    activity_id: `fg_local_${Date.now()}`,
+    activity_id: `fg_sim_${Date.now()}`,
     map_data: {
       type: "FeatureCollection",
       features,
@@ -187,19 +188,60 @@ export function generateRealisticHeatmap(
         standard_deviation: 0.25,
       },
     },
+    _telemetry: {
+      isLive: false,
+      taskId: `fg_sim_${Date.now()}`,
+      source: "FortyGuard Microclimate Thermodynamic Engine (Offline Mode)",
+      latencyMs: 110,
+      resolutionMeters: metadata?.granularity || 100,
+      featuresCount: features.length,
+      timestamp: new Date().toISOString(),
+    },
   };
 }
 
 // ── FortyGuard Client ──────────────────────────────────────────────────────
 export class FortyGuardClient {
-  // 1. Create Heatmap (Tries Live API -> Smooth Fallback)
+  // 1. Create Heatmap (Tries Live API -> Transparent Fallback with Telemetry)
   async createHeatmap(params: HeatmapRequest): Promise<HeatmapResult> {
+    const startTime = Date.now();
     try {
       const activityId = await postActivity("/heatmap", params);
-      return await pollActivity<HeatmapResult>(activityId);
+      const result = await pollActivity<HeatmapResult>(activityId);
+      const latencyMs = Date.now() - startTime;
+      return {
+        ...result,
+        _telemetry: {
+          isLive: true,
+          taskId: activityId,
+          source: "FortyGuard Live API v1 (TCM Engine)",
+          latencyMs,
+          resolutionMeters: params.granularity || 100,
+          featuresCount: result.map_data?.features?.length || 0,
+          timestamp: new Date().toISOString(),
+          requestPayload: params,
+        },
+      };
     } catch (err: unknown) {
-      console.warn("FortyGuard live API queue busy or failed, using local thermal engine fallback:", (err as Error).message);
-      return generateRealisticHeatmap(params.polygon_aoi);
+      console.warn("FortyGuard live API queue busy or failed, using local thermodynamic fallback:", (err as Error).message);
+      const fallback = generateRealisticHeatmap(params.polygon_aoi, 38.5, {
+        date: params.date_time?.start_date,
+        time: params.date_time?.start_time,
+        granularity: params.granularity,
+      });
+      return {
+        ...fallback,
+        _telemetry: {
+          isLive: false,
+          taskId: fallback.activity_id,
+          source: "FortyGuard Microclimate Thermodynamic Engine (Offline Mode)",
+          latencyMs: Date.now() - startTime,
+          resolutionMeters: params.granularity || 100,
+          featuresCount: fallback.map_data?.features?.length || 0,
+          timestamp: new Date().toISOString(),
+          requestPayload: params,
+        },
+      };
     }
   }
 

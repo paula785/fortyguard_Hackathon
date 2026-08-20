@@ -1,5 +1,7 @@
 "use client";
 // ─── LangGraph AI Assistant & Planner Studio ──────────────────────────────────
+// Conversational multi-turn urban microclimate co-pilot with prompt chips,
+// real-time step streaming, and direct link to thermal heatmap visualization.
 
 import { useRef, useEffect, useState, useCallback } from "react";
 import { useAppStore } from "@/store/app-store";
@@ -8,23 +10,23 @@ import type { AgentStep } from "@/store/app-store";
 const QUICK_SCENARIOS = [
   {
     title: "🚶 Transit Corridors",
-    desc: "Analyze unshaded pedestrian routes connecting light rail & bus lines",
-    query: "Analyze downtown transit corridors with high pedestrian foot traffic and minimal canopy coverage",
+    desc: "Target unshaded routes connecting bus and light rail stops with shade sails",
+    query: "Analyze pedestrian transit corridors with high foot traffic and minimal canopy coverage to lower commuter heatstroke risk.",
   },
   {
-    title: "🏫 School & Daycare Zones",
-    desc: "Target bus stops, crosswalks, and playgrounds near schools",
-    query: "Identify shade gaps around school pick-up zones and active playgrounds to lower child heat exposure",
+    title: "🌵 Extreme Drought Stress",
+    desc: "Simulate a 115°F July heatwave with 30% municipal water rationing",
+    query: "Simulate an extreme 115°F heatwave scenario with strict water conservation restrictions, prioritizing zero-water shade sails and deep-root desert ironwood trees.",
   },
   {
-    title: "🚗 Surface Parking Lots",
-    desc: "Mitigate severe asphalt heat islands in commercial shopping districts",
-    query: "Optimize high-traffic asphalt parking lots with rapid engineered shade sails and drought-tolerant trees",
+    title: "🚗 Commercial Parking Lots",
+    desc: "Convert high-temperature asphalt parking lots into cool solar canopies",
+    query: "Optimize high-albedo solar PV shade structures and perimeter canopy trees across commercial asphalt parking lots.",
   },
   {
-    title: "👵 Senior Living Centers",
-    desc: "Protect vulnerable elderly populations in outdoor seating areas",
-    query: "Deploy cooling canopies and high-albedo structures near senior community centers and clinics",
+    title: "🏫 School & Vulnerable Zones",
+    desc: "Target bus pick-up areas and crosswalks near schools and senior clinics",
+    query: "Deploy cooling canopies, misting-ready pergolas, and broadleaf shade trees around school pick-up zones and senior centers.",
   },
 ];
 
@@ -184,11 +186,23 @@ export default function AgentChat({ isFullView = false }: { isFullView?: boolean
       {/* Full View Scenario Header */}
       {isFullView && (
         <div style={{ marginBottom: "0.5rem" }}>
-          <div style={{ fontSize: "1.25rem", fontWeight: 800, color: "var(--text-primary)" }}>
-            🤖 LangGraph Autonomous Urban Planning Agent
-          </div>
-          <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)", marginTop: "0.2rem" }}>
-            Stateful multi-tool agent powered by **Google Gemini** & **FortyGuard APIs**. Pick a scenario or enter a custom brief.
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <div style={{ fontSize: "1.25rem", fontWeight: 800, color: "var(--text-primary)" }}>
+                🤖 LangGraph Autonomous Urban Planning Agent
+              </div>
+              <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)", marginTop: "0.2rem" }}>
+                Multi-step autonomous agent powered by <strong>Google Gemini</strong> & <strong>FortyGuard APIs</strong>.
+              </div>
+            </div>
+            <button
+              onClick={() => setActiveMainTab("heatmap")}
+              className="btn-primary"
+              style={{ padding: "0.45rem 1rem", fontSize: "0.8rem", display: "flex", alignItems: "center", gap: "0.4rem" }}
+            >
+              <span>🗺️</span>
+              <span>View Map Heatmap</span>
+            </button>
           </div>
 
           <div
@@ -207,6 +221,7 @@ export default function AgentChat({ isFullView = false }: { isFullView?: boolean
                   padding: "0.75rem",
                   cursor: "pointer",
                   border: "1px solid var(--border-subtle)",
+                  transition: "all 0.15s ease",
                 }}
                 onClick={() => handleSubmit(sc.query)}
               >
@@ -283,7 +298,7 @@ export default function AgentChat({ isFullView = false }: { isFullView?: boolean
       >
         <input
           type="text"
-          placeholder={`Describe urban planning goals for ${city}...`}
+          placeholder={`Ask or instruct the AI planner for ${city}...`}
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           disabled={isAgentRunning}

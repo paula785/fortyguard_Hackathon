@@ -28,15 +28,50 @@ export interface AgentStep {
   stepIndex?: number;
 }
 
-export type MapLayer = "heatmap-before" | "heatmap-after" | "interventions";
-export type MainTab = "heatmap" | "optimizer" | "irrigation" | "chat" | "export";
+export type MapLayer = "heatmap-before" | "heatmap-after" | "split-wipe" | "interventions";
+export type MainTab = "heatmap" | "optimizer" | "irrigation" | "chat" | "compare" | "export";
 export type RightTab = "kpi" | "catalog" | "irrigation" | "export";
+
+export interface ApiTelemetry {
+  isLive: boolean;
+  taskId?: string;
+  latencyMs?: number;
+  endpoint?: string;
+  timestamp?: string;
+  requestPayload?: unknown;
+  responsePayload?: unknown;
+  resolutionMeters?: number;
+  source?: string;
+  featuresCount?: number;
+}
+
+export interface ScenarioRecord {
+  id: string;
+  name: string;
+  budget: number;
+  mode: string;
+  totalCost: number;
+  avgCoolingF: number;
+  peakCoolingF: number;
+  weeklyWaterGal: number;
+  carbonKgYr: number;
+  energySavedKwh: number;
+  stormwaterGalYr: number;
+  treeCount: number;
+  shadeCount: number;
+  timestamp: string;
+}
 
 interface AppState {
   // Location
   city: string;
   lat: number;
   lon: number;
+
+  // Temporal & Granularity Controls
+  analysisDate: string;
+  analysisHour: number; // 0 - 23
+  granularity: number; // 50, 100, 250
 
   // Planning inputs
   budget: number;
@@ -54,6 +89,19 @@ interface AppState {
   irrigationPlan: IrrigationPlan | null;
   kpis: KPIReport | null;
 
+  // Telemetry & Inspector
+  apiTelemetry: ApiTelemetry | null;
+  showPayloadModal: boolean;
+
+  // Map Interactive Features
+  splitWipePercent: number; // 0 to 100
+  isSplitWipeActive: boolean;
+  sandboxMode: boolean;
+  selectedCatalogItem: string | null;
+
+  // Scenarios
+  scenarios: ScenarioRecord[];
+
   // UI state
   activeMainTab: MainTab;
   activeLayer: MapLayer;
@@ -66,6 +114,9 @@ interface AppState {
   setActiveMainTab: (tab: MainTab) => void;
   setCity: (city: string) => void;
   setLatLon: (lat: number, lon: number) => void;
+  setAnalysisDate: (date: string) => void;
+  setAnalysisHour: (hour: number) => void;
+  setGranularity: (granularity: number) => void;
   setBudget: (budget: number) => void;
   setUserBrief: (brief: string) => void;
   setPreferences: (prefs: Partial<UserPreferences>) => void;
@@ -77,9 +128,18 @@ interface AppState {
   setInterventions: (interventions: InterventionPlacement[]) => void;
   addIntervention: (intervention: InterventionPlacement) => void;
   removeIntervention: (id: string) => void;
+  updateIntervention: (id: string, partial: Partial<InterventionPlacement>) => void;
   setTemperatureStats: (stats: TemperatureStats | null) => void;
   setIrrigationPlan: (plan: IrrigationPlan | null) => void;
   setKPIs: (kpis: KPIReport | null) => void;
+  setApiTelemetry: (telemetry: ApiTelemetry | null) => void;
+  setShowPayloadModal: (show: boolean) => void;
+  setSplitWipePercent: (percent: number) => void;
+  setIsSplitWipeActive: (active: boolean) => void;
+  setSandboxMode: (active: boolean) => void;
+  setSelectedCatalogItem: (id: string | null) => void;
+  addScenario: (scenario: ScenarioRecord) => void;
+  deleteScenario: (id: string) => void;
   setActiveLayer: (layer: MapLayer) => void;
   setRightTab: (tab: RightTab) => void;
   setAgentRunning: (running: boolean) => void;
@@ -105,6 +165,9 @@ export const useAppStore = create<AppState>((set) => ({
   city: DEFAULT_CITY,
   lat: DEFAULT_LAT,
   lon: DEFAULT_LON,
+  analysisDate: "2024-07-15",
+  analysisHour: 14,
+  granularity: 100,
   budget: 250000,
   userBrief: "",
   preferences: DEFAULT_PREFERENCES,
@@ -118,6 +181,24 @@ export const useAppStore = create<AppState>((set) => ({
   temperatureStats: null,
   irrigationPlan: null,
   kpis: null,
+
+  apiTelemetry: {
+    isLive: false,
+    taskId: "init_seed_001",
+    latencyMs: 142,
+    endpoint: "FortyGuard /heatmap",
+    timestamp: new Date().toISOString(),
+    resolutionMeters: 100,
+    source: "FortyGuard Microclimate Engine",
+  },
+  showPayloadModal: false,
+
+  splitWipePercent: 50,
+  isSplitWipeActive: false,
+  sandboxMode: false,
+  selectedCatalogItem: null,
+
+  scenarios: [],
 
   activeMainTab: "heatmap",
   activeLayer: "heatmap-before",
@@ -138,6 +219,9 @@ export const useAppStore = create<AppState>((set) => ({
   setActiveMainTab: (activeMainTab) => set({ activeMainTab }),
   setCity: (city) => set({ city }),
   setLatLon: (lat, lon) => set({ lat, lon }),
+  setAnalysisDate: (analysisDate) => set({ analysisDate }),
+  setAnalysisHour: (analysisHour) => set({ analysisHour }),
+  setGranularity: (granularity) => set({ granularity }),
   setBudget: (budget) => set({ budget }),
   setUserBrief: (userBrief) => set({ userBrief }),
   setPreferences: (prefs) =>
@@ -152,9 +236,25 @@ export const useAppStore = create<AppState>((set) => ({
     set((s) => ({ interventions: [...s.interventions, intervention] })),
   removeIntervention: (id) =>
     set((s) => ({ interventions: s.interventions.filter((i) => i.id !== id) })),
+  updateIntervention: (id, partial) =>
+    set((s) => ({
+      interventions: s.interventions.map((i) =>
+        i.id === id ? { ...i, ...partial } : i
+      ),
+    })),
   setTemperatureStats: (temperatureStats) => set({ temperatureStats }),
   setIrrigationPlan: (irrigationPlan) => set({ irrigationPlan }),
   setKPIs: (kpis) => set({ kpis }),
+  setApiTelemetry: (apiTelemetry) => set({ apiTelemetry }),
+  setShowPayloadModal: (showPayloadModal) => set({ showPayloadModal }),
+  setSplitWipePercent: (splitWipePercent) => set({ splitWipePercent }),
+  setIsSplitWipeActive: (isSplitWipeActive) => set({ isSplitWipeActive }),
+  setSandboxMode: (sandboxMode) => set({ sandboxMode }),
+  setSelectedCatalogItem: (selectedCatalogItem) => set({ selectedCatalogItem }),
+  addScenario: (scenario) =>
+    set((s) => ({ scenarios: [scenario, ...s.scenarios.slice(0, 7)] })),
+  deleteScenario: (id) =>
+    set((s) => ({ scenarios: s.scenarios.filter((sc) => sc.id !== id) })),
   setActiveLayer: (activeLayer) => set({ activeLayer }),
   setRightTab: (rightTab) => set({ rightTab }),
   setAgentRunning: (isAgentRunning) => set({ isAgentRunning }),

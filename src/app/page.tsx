@@ -8,6 +8,7 @@ import AgentChat from "@/components/Chat/AgentChat";
 import OptimizerView from "@/components/Optimizer/OptimizerView";
 import WaterDashboard from "@/components/Irrigation/WaterDashboard";
 import BlueprintExport from "@/components/Report/BlueprintExport";
+import ScenarioComparison from "@/components/Report/ScenarioComparison";
 
 // Dynamically import MapLibre HeatMap
 const HeatMap = dynamic(() => import("@/components/Map/HeatMap"), {
@@ -46,8 +47,9 @@ const MAIN_TABS: { id: MainTab; label: string; emoji: string; subtitle: string }
   { id: "heatmap", label: "Thermal Heatmap", emoji: "🗺️", subtitle: "FortyGuard Heat Audit" },
   { id: "optimizer", label: "Canopy & Shade", emoji: "🌳", subtitle: "Species & Structure Allocation" },
   { id: "irrigation", label: "Smart Irrigation", emoji: "💧", subtitle: "Diurnal Water Scheduling" },
+  { id: "compare", label: "Scenario Matrix", emoji: "📊", subtitle: "Side-by-Side Trade-offs" },
   { id: "chat", label: "AI Planner", emoji: "🤖", subtitle: "LangGraph Conversational Agent" },
-  { id: "export", label: "Blueprint Export", emoji: "📄", subtitle: "Grants, JSON & GIS CSV" },
+  { id: "export", label: "Blueprint & Grants", emoji: "📄", subtitle: "GIS & Grant Applications" },
 ];
 
 const CITY_PRESETS = [
@@ -231,7 +233,14 @@ export default function Home() {
           </div>
         )}
 
-        {/* Tab 4: LangGraph AI Assistant */}
+        {/* Tab 4: Multi-Scenario Comparison Matrix */}
+        {activeMainTab === "compare" && (
+          <div style={{ width: "100%", height: "100%", position: "relative" }}>
+            <ScenarioComparison />
+          </div>
+        )}
+
+        {/* Tab 5: LangGraph AI Assistant */}
         {activeMainTab === "chat" && (
           <div style={{ width: "100%", height: "100%", position: "relative" }}>
             <AgentChat isFullView={true} />

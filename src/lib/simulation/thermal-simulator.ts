@@ -126,6 +126,8 @@ function coverageRadius(p: InterventionPlacement): number {
   return Math.sqrt(p.coverageM2 / Math.PI);
 }
 
+import { computeThermodynamicCooling } from "./eco-physics";
+
 // ── Core Thermal Cooling Simulation ───────────────────────────────────────
 export function simulateCooling(
   heatmapData: HeatmapResult | { type: "FeatureCollection"; features: HeatmapTileFeature[] } | { map_data: { features: HeatmapTileFeature[] } },
@@ -142,28 +144,29 @@ export function simulateCooling(
 
   const afterFeatures: HeatmapTileFeature[] = originalFeatures.map((tile) => {
     const center = tileCenter(tile);
-    let totalCoolingDeltaF = 0;
+    const origTempC = getFeatureTemp(tile);
+    let cumulativeCoolingDeltaF = 0;
 
     for (const p of placements || []) {
       const distM = haversineDistanceM(center.lat, center.lon, p.lat, p.lon);
-      const radiusM = coverageRadius(p) * 2.5;
+      
+      // Calculate thermodynamic physics for this specific intervention
+      const thermo = computeThermodynamicCooling(p, origTempC);
+      const effectiveRadiusM = thermo.effectiveCoolingRadiusM * 1.6;
 
-      if (distM <= radiusM) {
-        const proximityFactor = 1 - distM / radiusM;
-        const incrementalCooling = p.coolingDeltaF * proximityFactor;
-        // Diminishing returns model: 1 - e^(-total / k)
-        totalCoolingDeltaF =
-          totalCoolingDeltaF +
-          incrementalCooling * Math.exp(-totalCoolingDeltaF / 10);
+      if (distM <= effectiveRadiusM) {
+        // Gaussian thermal plume dispersion: e^(-(dist/radius)^2)
+        const spatialDecay = Math.exp(-Math.pow(distM / effectiveRadiusM, 2));
+        const directCoolingF = thermo.netCoolingDeltaF * spatialDecay;
+
+        // Thermal boundary layer saturation model (diminishing return ceiling)
+        cumulativeCoolingDeltaF += directCoolingF * Math.exp(-cumulativeCoolingDeltaF / 14);
       }
     }
 
-    const coolingDeltaC = (totalCoolingDeltaF * 5) / 9;
-    const origTempC = getFeatureTemp(tile);
-    const newTempC = Math.max(
-      origTempC - coolingDeltaC,
-      origTempC * 0.75
-    );
+    // Convert total cooling delta to Celsius
+    const coolingDeltaC = (cumulativeCoolingDeltaF * 5) / 9;
+    const newTempC = Math.max(origTempC - coolingDeltaC, 24.0);
 
     return {
       ...tile,
@@ -171,7 +174,7 @@ export function simulateCooling(
         ...tile.properties,
         temperature: parseFloat(newTempC.toFixed(2)),
         average_temperature: parseFloat(newTempC.toFixed(2)),
-        cooling_delta_f: parseFloat(totalCoolingDeltaF.toFixed(2)),
+        cooling_delta_f: parseFloat(cumulativeCoolingDeltaF.toFixed(2)),
         original_temp_c: origTempC,
       },
     };
@@ -215,7 +218,7 @@ export function simulateCooling(
 export function detectHotspots(
   heatmapData: HeatmapResult | { type: "FeatureCollection"; features: HeatmapTileFeature[] } | { map_data: { features: HeatmapTileFeature[] } },
   satelliteSegments: Record<string, number> = {},
-  topN = 15
+  topN = 16
 ): import("../fortyguard-types").Hotspot[] {
   const features: HeatmapTileFeature[] =
     (heatmapData as any)?.map_data?.features ||
@@ -233,8 +236,27 @@ export function detectHotspots(
     const tempC = getFeatureTemp(f);
     const tempF = parseFloat(((tempC * 9) / 5 + 32).toFixed(1));
 
+    // Dynamic land-cover classification from satellite context
+    const isHighAsphalt = i < 6 || (satelliteSegments.road ?? 0.3) > 0.25;
+    const surfaceType = isHighAsphalt ? "asphalt" : i % 3 === 0 ? "concrete_plaza" : "sidewalk_verge";
+
     const priority: "critical" | "high" | "medium" =
-      i < 5 || tempC >= 38 ? "critical" : i < 10 ? "high" : "medium";
+      tempC >= 39.5 || i < 4 ? "critical" : tempC >= 36.5 || i < 10 ? "high" : "medium";
+
+    // Intelligent recommendation based on thermal severity & surface type
+    let recommendedAction: "tree_planting" | "shade_structure" | "cool_roof" = "tree_planting";
+    let contextDescription = "";
+
+    if (tempC >= 41) {
+      recommendedAction = "shade_structure";
+      contextDescription = `Extreme Alert Heat Island: ${tempF}°F over unshaded ${surfaceType}. Immediate tensile shade canopy recommended for rapid relief.`;
+    } else if (surfaceType === "asphalt" || surfaceType === "concrete_plaza") {
+      recommendedAction = i % 2 === 0 ? "shade_structure" : "tree_planting";
+      contextDescription = `High-albedo deficit corridor: ${tempF}°F surface temperature. Solar canopy or desert shade tree recommended.`;
+    } else {
+      recommendedAction = "tree_planting";
+      contextDescription = `Pedestrian corridor: ${tempF}°F with permeable planting capacity. Deep-root native shade canopy recommended.`;
+    }
 
     return {
       id: `hotspot-${i + 1}`,
@@ -244,10 +266,10 @@ export function detectHotspots(
       temperatureC: tempC,
       tempF,
       temperatureF: tempF,
-      surfaceType: f.properties.surface_type || "asphalt",
+      surfaceType,
       priority,
-      recommendedAction: i % 2 === 0 ? "tree_planting" : "shade_structure",
-      context: `Tile ${f.properties.tile_id ?? i}: ${tempF}°F (${tempC.toFixed(1)}°C) unshaded corridor`,
+      recommendedAction,
+      context: contextDescription,
     };
   });
 }

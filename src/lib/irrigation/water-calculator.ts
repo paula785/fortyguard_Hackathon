@@ -85,10 +85,10 @@ export function generateIrrigationPlan(
   plantAgeDays: number = 30
 ): IrrigationPlan {
   // Extract environmental conditions
-  const location = envParams?.result.locations[0];
-  const heatIdxArr = location?.parameters.heat_index_celsius;
-  const precipArr = location?.parameters.precipitation_mm;
-  const cloudArr = location?.parameters.cloud_cover_octas;
+  const location = (envParams as any)?.result?.locations?.[0] || (envParams as any)?.data?.locations?.[0] || (envParams as any)?.locations?.[0];
+  const heatIdxArr = location?.parameters?.heat_index_celsius;
+  const precipArr = location?.parameters?.precipitation_mm;
+  const cloudArr = location?.parameters?.cloud_cover_octas;
 
   const avgTempC = heatIdxArr
     ? heatIdxArr.filter(Boolean).reduce((a, b) => a + (b ?? 0), 0) /

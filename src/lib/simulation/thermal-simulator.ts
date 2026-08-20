@@ -128,20 +128,23 @@ function coverageRadius(p: InterventionPlacement): number {
 
 // ── Core Thermal Cooling Simulation ───────────────────────────────────────
 export function simulateCooling(
-  heatmapData: { type: "FeatureCollection"; features: HeatmapTileFeature[] },
+  heatmapData: HeatmapResult | { type: "FeatureCollection"; features: HeatmapTileFeature[] } | { map_data: { features: HeatmapTileFeature[] } },
   placements: InterventionPlacement[]
 ): {
-  beforeGeoJSON: { type: "FeatureCollection"; features: HeatmapTileFeature[] };
+  beforeGeoJSON: any;
   afterGeoJSON: { type: "FeatureCollection"; features: HeatmapTileFeature[] };
   stats: TemperatureStats;
 } {
-  const originalFeatures = heatmapData.features;
+  const originalFeatures: HeatmapTileFeature[] =
+    (heatmapData as any)?.map_data?.features ||
+    (heatmapData as any)?.features ||
+    [];
 
   const afterFeatures: HeatmapTileFeature[] = originalFeatures.map((tile) => {
     const center = tileCenter(tile);
     let totalCoolingDeltaF = 0;
 
-    for (const p of placements) {
+    for (const p of placements || []) {
       const distM = haversineDistanceM(center.lat, center.lon, p.lat, p.lon);
       const radiusM = coverageRadius(p) * 2.5;
 
@@ -156,9 +159,10 @@ export function simulateCooling(
     }
 
     const coolingDeltaC = (totalCoolingDeltaF * 5) / 9;
+    const origTempC = getFeatureTemp(tile);
     const newTempC = Math.max(
-      tile.properties.temperature - coolingDeltaC,
-      tile.properties.temperature * 0.75
+      origTempC - coolingDeltaC,
+      origTempC * 0.75
     );
 
     return {
@@ -166,8 +170,9 @@ export function simulateCooling(
       properties: {
         ...tile.properties,
         temperature: parseFloat(newTempC.toFixed(2)),
+        average_temperature: parseFloat(newTempC.toFixed(2)),
         cooling_delta_f: parseFloat(totalCoolingDeltaF.toFixed(2)),
-        original_temp_c: tile.properties.temperature,
+        original_temp_c: origTempC,
       },
     };
   });
@@ -208,14 +213,14 @@ export function simulateCooling(
 }
 
 export function detectHotspots(
-  heatmapData: HeatmapResult | { type: "FeatureCollection"; features: HeatmapTileFeature[] },
+  heatmapData: HeatmapResult | { type: "FeatureCollection"; features: HeatmapTileFeature[] } | { map_data: { features: HeatmapTileFeature[] } },
   satelliteSegments: Record<string, number> = {},
   topN = 15
 ): import("../fortyguard-types").Hotspot[] {
-  const features =
-    "map_data" in heatmapData
-      ? heatmapData.map_data.features
-      : heatmapData.features;
+  const features: HeatmapTileFeature[] =
+    (heatmapData as any)?.map_data?.features ||
+    (heatmapData as any)?.features ||
+    [];
 
   const sorted = [...features].sort((a, b) => getFeatureTemp(b) - getFeatureTemp(a));
 
@@ -236,7 +241,9 @@ export function detectHotspots(
       lat,
       lon,
       tempC,
+      temperatureC: tempC,
       tempF,
+      temperatureF: tempF,
       surfaceType: f.properties.surface_type || "asphalt",
       priority,
       recommendedAction: i % 2 === 0 ? "tree_planting" : "shade_structure",

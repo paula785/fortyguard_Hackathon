@@ -99,6 +99,11 @@ interface AppState {
   sandboxMode: boolean;
   selectedCatalogItem: string | null;
 
+  // Auth & Onboarding (PRD §5.2 Screen 1)
+  userRole: "municipality" | "esg";
+  userEmail: string;
+  showOnboardingModal: boolean;
+
   // Scenarios
   scenarios: ScenarioRecord[];
 
@@ -111,6 +116,9 @@ interface AppState {
   chatMessages: ChatMessage[];
 
   // Actions
+  setUserRole: (role: "municipality" | "esg") => void;
+  setUserEmail: (email: string) => void;
+  setShowOnboardingModal: (show: boolean) => void;
   setActiveMainTab: (tab: MainTab) => void;
   setCity: (city: string) => void;
   setLatLon: (lat: number, lon: number) => void;
@@ -193,6 +201,11 @@ export const useAppStore = create<AppState>((set) => ({
   },
   showPayloadModal: false,
 
+  // Auth & Onboarding initial state
+  userRole: "municipality",
+  userEmail: "urban.planner@phoenix.gov",
+  showOnboardingModal: false,
+
   splitWipePercent: 50,
   isSplitWipeActive: false,
   sandboxMode: false,
@@ -210,12 +223,15 @@ export const useAppStore = create<AppState>((set) => ({
       id: "welcome",
       role: "assistant",
       content:
-        "👋 Welcome to **UrbanCanopy AI**! I'm your autonomous microclimate planning assistant.\n\nDescribe the area you want to analyze — for example:\n\n*\"Analyze downtown Phoenix pedestrian corridors near transit stops with a $250K budget, prioritizing low water usage.\"*\n\nI'll fetch live temperature data, identify heat islands, and design an optimal cooling blueprint.",
+        "👋 Welcome to **UrbanCool AI**! I'm your autonomous microclimate planning assistant.\n\nDescribe the area you want to analyze — for example:\n\n*\"Analyze downtown Phoenix pedestrian corridors near transit stops with a $250K budget, prioritizing low water usage.\"*\n\nI'll fetch live temperature data, identify heat islands, and design an optimal cooling blueprint.",
       timestamp: new Date().toISOString(),
     },
   ],
 
   // Setters
+  setUserRole: (userRole) => set({ userRole }),
+  setUserEmail: (userEmail) => set({ userEmail }),
+  setShowOnboardingModal: (showOnboardingModal) => set({ showOnboardingModal }),
   setActiveMainTab: (activeMainTab) => set({ activeMainTab }),
   setCity: (city) => set({ city }),
   setLatLon: (lat, lon) => set({ lat, lon }),

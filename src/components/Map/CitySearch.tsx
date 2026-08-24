@@ -13,11 +13,11 @@ interface SearchResult {
 }
 
 const FEATURED_CITIES = [
+  { name: "Demo Heatmap - California", lat: 34.0522, lon: -118.2437, tag: "FortyGuard Demo Swath" },
   { name: "Phoenix, AZ", lat: 33.4484, lon: -112.074, tag: "Desert Hotspot" },
   { name: "Houston, TX", lat: 29.7604, lon: -95.3698, tag: "Humid Heat Island" },
   { name: "Miami, FL", lat: 25.7617, lon: -80.1918, tag: "Coastal Urban" },
   { name: "Las Vegas, NV", lat: 36.1699, lon: -115.1398, tag: "Arid Core" },
-  { name: "Los Angeles, CA", lat: 34.0522, lon: -118.2437, tag: "Inland Valley" },
   { name: "Dubai, UAE", lat: 25.2048, lon: 55.2708, tag: "Hyper-Arid" },
   { name: "Seville, Spain", lat: 37.3891, lon: -5.9845, tag: "Mediterranean Basin" },
 ];

@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  # 1. Next.js 15 Full-Stack Application
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: urbancool-web
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgres://urbancool:urbancool_secure_pass@postgres:5432/urbancool_db
+      - REDIS_URL=redis://redis:6379
+      - FORTYGUARD_API_KEY=${FORTYGUARD_API_KEY}
+      - FORTYGUARD_BASE_URL=https://api.fortyguard.com
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - urbancool-net
+
+  # 2. PostgreSQL + PostGIS Spatial Database (PRD Section 2)
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: urbancool-postgis
+    restart: always
+    environment:
+      POSTGRES_USER: urbancool
+      POSTGRES_PASSWORD: urbancool_secure_pass
+      POSTGRES_DB: urbancool_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./src/lib/db/schema.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U urbancool -d urbancool_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - urbancool-net
+
+  # 3. Redis Simulation & Task Cache (PRD Section 4.3 <50ms response)
+  redis:
+    image: redis:7-alpine
+    container_name: urbancool-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - urbancool-net
+
+volumes:
+  pgdata:
+    driver: local
+  redisdata:
+    driver: local
+
+networks:
+  urbancool-net:
+    driver: bridge

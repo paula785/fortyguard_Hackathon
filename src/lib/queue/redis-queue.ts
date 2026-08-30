@@ -7,7 +7,8 @@
  * Aligned with PRD Section 1.4, 4.3, and 7.
  */
 
-import { MicrogridCell } from '../db/postgis-client';
+import Redis from "ioredis";
+import type { MicrogridCell } from "../db/postgis-client";
 
 export interface MarginalCoolingMatrix {
   jobId: string;
@@ -32,11 +33,11 @@ export interface SimulationResult {
     estimated_annual_energy_savings_usd: number;
   };
   optimized_plant_locations: {
-    type: 'FeatureCollection';
+    type: "FeatureCollection";
     features: Array<{
-      type: 'Feature';
+      type: "Feature";
       geometry: {
-        type: 'Point';
+        type: "Point";
         coordinates: [number, number];
       };
       properties: {
@@ -52,11 +53,45 @@ export interface SimulationResult {
 // In-Memory Simulation Cache Store (Attached to globalThis to persist across Next.js API route workers)
 const globalRedisStore = globalThis as unknown as {
   __urbancool_sim_cache?: Map<string, MarginalCoolingMatrix>;
+  __urbancool_redis_client?: Redis;
 };
 
 const simulationCache = (globalRedisStore.__urbancool_sim_cache ??= new Map<string, MarginalCoolingMatrix>());
 
 export class RedisSimulationManager {
+  private redis: Redis | null = null;
+  private isConnected: boolean = false;
+
+  constructor() {
+    const redisUrl = process.env.REDIS_URL;
+    if (redisUrl) {
+      try {
+        this.redis = (globalRedisStore.__urbancool_redis_client ??= new Redis(redisUrl, {
+          lazyConnect: true,
+          maxRetriesPerRequest: 1,
+          connectTimeout: 2000,
+          retryStrategy: () => null, // Do not spam reconnects if offline
+        }));
+
+        this.redis.on("connect", () => {
+          this.isConnected = true;
+        });
+
+        this.redis.on("error", (err) => {
+          console.warn("[RedisSimulationManager] Redis notice (using in-memory cache):", err.message);
+          this.isConnected = false;
+        });
+
+        this.redis.connect().catch((err) => {
+          console.warn("[RedisSimulationManager] Redis initial connect notice (using in-memory cache):", err.message);
+          this.isConnected = false;
+        });
+      } catch (err) {
+        console.warn("[RedisSimulationManager] Redis init notice:", err);
+      }
+    }
+  }
+
   /**
    * Pre-computes and caches the Marginal Cooling Delta Matrix for a job
    * PRD Section 4.3: Fast-Simulation Cache
@@ -96,6 +131,15 @@ export class RedisSimulationManager {
     };
 
     simulationCache.set(jobId, matrix);
+
+    if (this.redis && this.isConnected) {
+      try {
+        await this.redis.setex(`simulation:${jobId}`, 86400, JSON.stringify(matrix));
+      } catch (err) {
+        console.warn("[RedisSimulationManager] Redis setex error:", (err as Error).message);
+      }
+    }
+
     return matrix;
   }
 
@@ -111,6 +155,18 @@ export class RedisSimulationManager {
   }): Promise<SimulationResult> {
     let matrix = simulationCache.get(params.jobId);
 
+    if (!matrix && this.redis && this.isConnected) {
+      try {
+        const cached = await this.redis.get(`simulation:${params.jobId}`);
+        if (cached) {
+          matrix = JSON.parse(cached);
+          if (matrix) simulationCache.set(params.jobId, matrix);
+        }
+      } catch (err) {
+        console.warn("[RedisSimulationManager] Redis get error:", (err as Error).message);
+      }
+    }
+
     // If cache not warmed, build an emergency synthetic matrix
     if (!matrix) {
       matrix = {
@@ -122,7 +178,7 @@ export class RedisSimulationManager {
           marginalDeltaT: 0.012 + Math.random() * 0.008,
           plantableArea: 100,
           mcdaScore: 0.9 - i * 0.003,
-          surfaceType: 'asphalt',
+          surfaceType: "asphalt",
         })),
         cumulativeDeltaT: Array.from({ length: 250 }).map((_, i) => (i + 1) * 0.015),
         updatedAt: new Date().toISOString(),
@@ -134,20 +190,21 @@ export class RedisSimulationManager {
     const treeCap = Math.max(1, Math.min(treeCount, matrix.totalPlantableCells));
 
     // O(1) cumulative delta retrieval
-    const totalReduction = matrix.cumulativeDeltaT[Math.min(treeCap - 1, matrix.cumulativeDeltaT.length - 1)] || 1.8;
+    const totalReduction =
+      matrix.cumulativeDeltaT[Math.min(treeCap - 1, matrix.cumulativeDeltaT.length - 1)] || 1.8;
     const avgReduction = Math.min(6.5, parseFloat((totalReduction * 0.85).toFixed(2)));
     const maxReduction = Math.min(9.0, parseFloat((avgReduction * 1.6).toFixed(2)));
     const comfortImprovement = Math.min(85, parseFloat((avgReduction * 18.2).toFixed(1)));
-    
+
     // Economic energy savings formula: ~$75 - $120 saved per mature tree/canopy unit per year
     const energySavings = Math.round(treeCap * 78.5 + (budgetUsd ? budgetUsd * 0.08 : 0));
 
     // Sample top active intervention features
     const selectedCells = matrix.cells.slice(0, Math.min(treeCap, 60));
     const features = selectedCells.map((cell, idx) => ({
-      type: 'Feature' as const,
+      type: "Feature" as const,
       geometry: {
-        type: 'Point' as const,
+        type: "Point" as const,
         coordinates: cell.centroid,
       },
       properties: {
@@ -166,7 +223,7 @@ export class RedisSimulationManager {
         estimated_annual_energy_savings_usd: energySavings,
       },
       optimized_plant_locations: {
-        type: 'FeatureCollection',
+        type: "FeatureCollection",
         features,
       },
     };

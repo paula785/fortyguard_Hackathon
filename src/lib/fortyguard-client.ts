@@ -12,7 +12,7 @@ import type {
 } from "./fortyguard-types";
 
 const BASE_URL = process.env.FORTYGUARD_BASE_URL || "https://api.fortyguard.com/v1";
-const API_KEY  = process.env.FORTYGUARD_API_KEY || "";
+const API_KEY  = process.env.FORTYGUARD_API_KEY || "e983b506118ca77b1a9a6af814000d05";
 
 // ── Polling config ─────────────────────────────────────────────────────────
 const POLL_INITIAL_MS  = 2000;

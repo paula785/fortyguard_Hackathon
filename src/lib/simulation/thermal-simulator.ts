@@ -193,6 +193,13 @@ export function simulateCooling(
   const improvedCount = deltasF.filter((d) => d > 0.5).length;
   const areaImprovedPercent = (improvedCount / (deltasF.length || 1)) * 100;
 
+  // Average cooling across only treated tiles (delta > 0.5°F) — avoids the "-0°F" display
+  // that results from diluting across 1,400+ untouched tiles in the full grid.
+  const treatedDeltas = deltasF.filter((d) => d > 0.5);
+  const treatedZoneAvgDeltaF = treatedDeltas.length > 0
+    ? parseFloat((treatedDeltas.reduce((a, b) => a + b, 0) / treatedDeltas.length).toFixed(1))
+    : 0;
+
   const stats: TemperatureStats = {
     beforeAvgF: parseFloat(
       (beforeTempsF.reduce((a, b) => a + b, 0) / (beforeTempsF.length || 1)).toFixed(1)
@@ -201,6 +208,7 @@ export function simulateCooling(
       (afterTempsF.reduce((a, b) => a + b, 0) / (afterTempsF.length || 1)).toFixed(1)
     ),
     avgDeltaF: parseFloat(avgDeltaF.toFixed(1)),
+    treatedZoneAvgDeltaF,
     maxDeltaF: parseFloat(maxDeltaF.toFixed(1)),
     areaImprovedPercent: parseFloat(areaImprovedPercent.toFixed(1)),
   };

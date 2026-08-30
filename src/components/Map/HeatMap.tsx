@@ -468,7 +468,7 @@ export default function HeatMap() {
         budget: selectedBudget,
         mode: selectedMode,
         totalCost: optResult.totalCost,
-        avgCoolingF: simResult.stats.avgDeltaF,
+        avgCoolingF: simResult.stats.treatedZoneAvgDeltaF ?? simResult.stats.avgDeltaF,
         peakCoolingF: simResult.stats.maxDeltaF,
         weeklyWaterGal: irrResult.totalWeeklyGallons,
         carbonKgYr: ecoReport.annualCarbonKg,

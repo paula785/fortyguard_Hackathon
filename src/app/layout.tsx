@@ -41,7 +41,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
         <link
-          href="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.css"
+          href="https://unpkg.com/maplibre-gl@6.4.1/dist/maplibre-gl.css"
           rel="stylesheet"
         />
       </head>

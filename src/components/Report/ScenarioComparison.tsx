@@ -212,9 +212,9 @@ export default function ScenarioComparison() {
               {/* Key Highlights Grid */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.6rem" }}>
                 <div style={{ background: "rgba(0,0,0,0.3)", padding: "0.6rem", borderRadius: "8px" }}>
-                  <div style={{ fontSize: "0.68rem", color: "#94a3b8" }}>Average Cooling</div>
+                  <div style={{ fontSize: "0.68rem", color: "#94a3b8" }}>Avg Cooling (Treated Zones)</div>
                   <div style={{ fontSize: "1.1rem", fontWeight: 800, color: "#34d399" }}>
-                    −{s.avgCoolingF}°F
+                    −{s.avgCoolingF > 0 ? s.avgCoolingF.toFixed(1) : "< 1"}°F
                   </div>
                 </div>
                 <div style={{ background: "rgba(0,0,0,0.3)", padding: "0.6rem", borderRadius: "8px" }}>
@@ -287,7 +287,7 @@ export default function ScenarioComparison() {
                   <th style={{ padding: "0.6rem 0.8rem" }}>Scenario</th>
                   <th style={{ padding: "0.6rem 0.8rem" }}>Budget Cap</th>
                   <th style={{ padding: "0.6rem 0.8rem" }}>Actual Spend</th>
-                  <th style={{ padding: "0.6rem 0.8rem" }}>Avg Cooling</th>
+                  <th style={{ padding: "0.6rem 0.8rem" }}>Avg Cooling (Treated)</th>
                   <th style={{ padding: "0.6rem 0.8rem" }}>Peak Cooling</th>
                   <th style={{ padding: "0.6rem 0.8rem" }}>Weekly Water</th>
                   <th style={{ padding: "0.6rem 0.8rem" }}>CO₂ Offset</th>
@@ -306,7 +306,7 @@ export default function ScenarioComparison() {
                     <td style={{ padding: "0.75rem 0.8rem", fontWeight: 700, color: "#f8fafc" }}>{s.name}</td>
                     <td style={{ padding: "0.75rem 0.8rem", color: "#94a3b8" }}>${s.budget.toLocaleString()}</td>
                     <td style={{ padding: "0.75rem 0.8rem", fontWeight: 600, color: "#f8fafc" }}>${s.totalCost.toLocaleString()}</td>
-                    <td style={{ padding: "0.75rem 0.8rem", fontWeight: 700, color: "#34d399" }}>−{s.avgCoolingF}°F</td>
+                    <td style={{ padding: "0.75rem 0.8rem", fontWeight: 700, color: "#34d399" }}>−{s.avgCoolingF > 0 ? s.avgCoolingF.toFixed(1) : "< 1"}°F</td>
                     <td style={{ padding: "0.75rem 0.8rem", fontWeight: 700, color: "#38bdf8" }}>−{s.peakCoolingF}°F</td>
                     <td style={{ padding: "0.75rem 0.8rem", color: "#fbbf24" }}>{s.weeklyWaterGal.toLocaleString()} gal</td>
                     <td style={{ padding: "0.75rem 0.8rem", color: "#34d399" }}>{s.carbonKgYr.toLocaleString()} kg/yr</td>

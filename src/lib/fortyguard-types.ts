@@ -293,6 +293,8 @@ export interface TemperatureStats {
   beforeAvgF?: number;
   afterAvgF?: number;
   avgDeltaF: number;
+  /** Average cooling across only the tiles that received ≥0.5°F of treatment (not diluted by untouched tiles) */
+  treatedZoneAvgDeltaF?: number;
   maxDeltaF: number;
   areaImprovedPercent: number;
 }

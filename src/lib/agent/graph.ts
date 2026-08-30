@@ -240,9 +240,7 @@ export async function* runAutonomousPipeline(
 
 // ── LLM React Agent (when Gemini Key is active) ───────────────────────────
 function createUrbanCanopyAgent() {
-  const apiKey =
-    process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
-    "AQ.Ab8RN6K76_JJcOPx4vuWv4_c1ibdt0-bJEUgOO1uH88WBFmyUw";
+  const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   if (!apiKey || apiKey === "your_gemini_api_key_here") {
     return null;
   }
